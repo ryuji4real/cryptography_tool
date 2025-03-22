@@ -53,12 +53,12 @@ openssl version
 
 1️⃣ **Clone the Repository**  
 ```bash
-git clone https://github.com/your-username/Chiffrement.git
+git clone https://github.com/ryuji4real/cryptography_tool.git
 ```
 
 2️⃣ **Navigate to the Project Folder**  
 ```bash
-cd Chiffrement
+cd Cryptography_Tool
 ```
 
 3️⃣ **Compile the Project**  
@@ -92,7 +92,7 @@ Or add `C:\msys64\mingw64\bin` to your PATH permanently via Windows settings:
 
 2️⃣ **Run the Program**  
 ```cmd
-cd path\to\Chiffrement
+cd path\to\Cryptography_Tool
 bin\program.exe
 ```
 
