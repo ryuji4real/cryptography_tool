@@ -43,5 +43,6 @@ void log_action(const char *action);
 void compress_and_encrypt(const char *input_file, const char *output_file, int algo, const char *cle);
 void decrypt_and_decompress(const char *input_file, const char *output_file, int algo, const char *cle);
 void compute_sha256(const char *input, char *output);
+int hex_to_bytes(const char *hex, unsigned char *bytes, int max_len);
 
 #endif
