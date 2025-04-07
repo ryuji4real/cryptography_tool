@@ -353,13 +353,13 @@ void brute_force_cesar(const char *ciphertext) {
 
 int detect_algorithm(const char *ciphertext) {
     size_t len = strlen(ciphertext);
-    if (len % 4 == 0 && strspn(ciphertext, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=") == len) return 9; // Base64
+    if (len % 4 == 0 && strspn(ciphertext, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=") == len) return 9;
     int freq[26] = {0};
     for (int i = 0; ciphertext[i]; i++) if (isalpha(ciphertext[i])) freq[toupper(ciphertext[i]) - 'A']++;
     int max_freq = 0;
     for (int i = 0; i < 26; i++) if (freq[i] > max_freq) max_freq = freq[i];
-    if (max_freq > len / 5) return 1; // César probable
-    return 0; // Inconnu
+    if (max_freq > (int)(len / 5)) return 1;
+    return 0;
 }
 
 void list_files(const char *dir) {
@@ -405,4 +405,13 @@ void compute_sha256(const char *input, char *output) {
         sprintf(output + (i * 2), "%02x", hash[i]);
     }
     output[SHA256_DIGEST_LENGTH * 2] = '\0';
+}
+
+int hex_to_bytes(const char *hex, unsigned char *bytes, int max_len) {
+    int len = strlen(hex) / 2;
+    if (len > max_len) return 0;
+    for (int i = 0; i < len; i++) {
+        sscanf(hex + 2 * i, "%2hhx", &bytes[i]);
+    }
+    return len;
 }
