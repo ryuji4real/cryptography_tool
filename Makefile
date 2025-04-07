@@ -5,7 +5,7 @@ INCLUDE_DIR = include
 OBJ_DIR = obj
 BIN_DIR = bin
 
-SRC = $(SRC_DIR)/main.c $(SRC_DIR)/cesar.c $(SRC_DIR)/vigenere.c $(SRC_DIR)/xor.c $(SRC_DIR)/utils.c $(SRC_DIR)/rot13.c $(SRC_DIR)/base64.c $(SRC_DIR)/substitution.c $(SRC_DIR)/aes_simple.c $(SRC_DIR)/freq_analysis.c $(SRC_DIR)/transposition.c
+SRC = $(SRC_DIR)/main.c $(SRC_DIR)/cesar.c $(SRC_DIR)/vigenere.c $(SRC_DIR)/xor.c $(SRC_DIR)/utils.c $(SRC_DIR)/rot13.c $(SRC_DIR)/base64.c $(SRC_DIR)/substitution.c $(SRC_DIR)/aes_improved.c $(SRC_DIR)/freq_analysis.c $(SRC_DIR)/transposition.c $(SRC_DIR)/monoalphabetique.c $(SRC_DIR)/rc4.c $(SRC_DIR)/chacha20.c
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 EXEC = $(BIN_DIR)/program
 LIBS = -ladvapi32 -lssl -lcrypto -lz
