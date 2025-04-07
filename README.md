@@ -4,7 +4,7 @@ This repository provides a powerful C-based cryptography tool, designed to imple
 
 ### ✨ Features
 
-✅ **Encryption/Decryption**: Supports César, XOR, Vigenère, ROT13, Base64, Substitution, AES, and Transposition  
+✅ **Encryption/Decryption**: Supports César, XOR, Vigenère, ROT13, Base64, Substitution, AES, Transposition, Chacha20, RC4 and personalized Monoalphabetic
 ✅ **Cryptanalysis**: Algorithm detection, César brute force, frequency analysis  
 ✅ **Hashing**: Compute SHA-256 hashes  
 ✅ **Compression**: Compress/decompress with zlib  
