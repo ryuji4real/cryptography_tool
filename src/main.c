@@ -11,9 +11,12 @@
 #include "rot13.h"
 #include "base64.h"
 #include "substitution.h"
-#include "aes_simple.h"
+#include "aes_improved.h"
+#include "chacha20.h"
+#include "rc4.h"
 #include "freq_analysis.h"
 #include "transposition.h"
+#include "monoalphabetique.h"
 #include "utils.h"
 
 #define GREEN 10
@@ -159,6 +162,11 @@ void afficher_menu(const Config *config) {
     printf("27 - %s\n", strcmp(lang, "fr") == 0 ? "Calculer SHA-256" : "Compute SHA-256");
     printf("28 - %s\n", strcmp(lang, "fr") == 0 ? "Configurer" : "Configure");
     printf("29 - %s\n", strcmp(lang, "fr") == 0 ? "Tester" : "Test");
+    printf("30 - %s Monoalphabetique\n", strcmp(lang, "fr") == 0 ? "Chiffrer avec" : "Encrypt with");
+    printf("31 - %s Monoalphabetique\n", strcmp(lang, "fr") == 0 ? "Dechiffrer avec" : "Decrypt with");
+    printf("32 - %s ChaCha20\n", strcmp(lang, "fr") == 0 ? "Chiffrer avec" : "Encrypt with");
+    printf("33 - %s ChaCha20\n", strcmp(lang, "fr") == 0 ? "Dechiffrer avec" : "Decrypt with");
+    printf("34 - %s RC4\n", strcmp(lang, "fr") == 0 ? "Chiffrer/Dechiffrer avec" : "Encrypt/Decrypt with");
     printf("0 - %s\n", strcmp(lang, "fr") == 0 ? "Quitter" : "Quit");
     printf("%s: ", strcmp(lang, "fr") == 0 ? "Choix" : "Choice");
 }
@@ -174,7 +182,10 @@ void afficher_aide(const Config *config) {
     printf("6. Substitution: %s\n", strcmp(lang, "fr") == 0 ? "Remplace chaque lettre (cle: alphabet 26 lettres)" : "Replaces each letter (key: 26-letter alphabet)");
     printf("7. AES: %s\n", strcmp(lang, "fr") == 0 ? "Chiffrement par bloc (cle: 32 caracteres)" : "Block cipher (key: 32 characters)");
     printf("8. Transposition: %s\n", strcmp(lang, "fr") == 0 ? "Reorganise les lettres (cle: nombre de colonnes)" : "Rearranges letters (key: column count)");
-    printf("9. %s: %s\n", strcmp(lang, "fr") == 0 ? "Fichiers" : "Files", strcmp(lang, "fr") == 0 ? "Chemin absolu ou dans input_files" : "Absolute path or in input_files");
+    printf("9. Monoalphabetique: %s\n", strcmp(lang, "fr") == 0 ? "Remplace chaque lettre avec un codage personnalise (cle: alphabet 26 lettres)" : "Replaces each letter with custom encoding (key: 26-letter alphabet)");
+    printf("10. ChaCha20: %s\n", strcmp(lang, "fr") == 0 ? "Chiffrement par flux (cle: 32 caracteres)" : "Stream cipher (key: 32 characters)");
+    printf("11. RC4: %s\n", strcmp(lang, "fr") == 0 ? "Chiffrement par flux (cle: longueur variable)" : "Stream cipher (key: variable length)");
+    printf("12. %s: %s\n", strcmp(lang, "fr") == 0 ? "Fichiers" : "Files", strcmp(lang, "fr") == 0 ? "Chemin absolu ou dans input_files" : "Absolute path or in input_files");
 }
 
 void run_tests() {
@@ -184,7 +195,6 @@ void run_tests() {
     if (strcmp(test, "KHOOR") == 0) printf("Cesar encrypt: OK\n"); else printf("Cesar encrypt: FAIL\n");
     dechiffrement_cesar(test, 3);
     if (strcmp(test, "HELLO") == 0) printf("Cesar decrypt: OK\n"); else printf("Cesar decrypt: FAIL\n");
-    // Ajouter d'autres tests...
 }
 
 int main(int argc, char *argv[]) {
@@ -208,10 +218,18 @@ int main(int argc, char *argv[]) {
                 printf("Result: %s\n", input);
                 log_action("Cesar encrypt via CLI");
             } else if (strcmp(algo, "aes") == 0) {
-                char output[MAX_MSG];
-                aes_encrypt(input, key, output);
-                printf("Result: %s\n", output);
-                log_action("AES encrypt via CLI");
+                AES_Result *result = aes_encrypt_gcm((unsigned char *)input, strlen(input), (unsigned char *)key, NULL, 0);
+                if (!result) {
+                    printf("AES encryption failed.\n");
+                    return 1;
+                }
+                printf("Result (hex): ");
+                for (int i = 0; i < result->data_len; i++) printf("%02x", result->data[i]);
+                printf("\nIV (hex): ");
+                for (int i = 0; i < AES_IV_SIZE; i++) printf("%02x", result->iv[i]);
+                printf("\n");
+                aes_free_result(result);
+                log_action("AES-GCM encrypt via CLI");
             }
             return 0;
         }
@@ -236,7 +254,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if ((choix >= 1 && choix <= 12) || choix == 16 || choix == 17 || choix == 19 || choix == 20) {
+        if ((choix >= 1 && choix <= 12) || (choix >= 16 && choix <= 20) || (choix >= 30 && choix <= 34)) {
             get_valid_string_input("Enter your message: ", message, MAX_MSG, NULL);
             normaliser_texte(message);
             printf("Normalized message: %s (Hash: %u)\n", message, simple_hash(message));
@@ -369,7 +387,7 @@ int main(int argc, char *argv[]) {
                     printf("Generated key: %s\n", cle_str);
                     add_to_history("Key generation", cle_str);
                     break;
-                case 16:
+                case 16: {
                     get_valid_string_input("Enter key (32 chars for AES): ", cle_str, MAX_MSG, NULL);
                     if (strlen(cle_str) != AES_KEY_SIZE) {
                         set_color(RED);
@@ -377,11 +395,23 @@ int main(int argc, char *argv[]) {
                         set_color(WHITE);
                         break;
                     }
-                    aes_encrypt(message, cle_str, output);
-                    printf("Encrypted: %s\n", output);
-                    add_to_history("AES encrypt", output);
+                    AES_Result *result = aes_encrypt_gcm((unsigned char *)message, strlen(message), (unsigned char *)cle_str, NULL, 0);
+                    if (!result) {
+                        set_color(RED);
+                        printf("Encryption failed.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    printf("Encrypted (hex): ");
+                    for (int i = 0; i < result->data_len; i++) printf("%02x", result->data[i]);
+                    printf("\nIV (hex): ");
+                    for (int i = 0; i < AES_IV_SIZE; i++) printf("%02x", result->iv[i]);
+                    printf("\n");
+                    aes_free_result(result);
+                    add_to_history("AES-GCM encrypt", "Encrypted data");
                     break;
-                case 17:
+                }
+                case 17: {
                     get_valid_string_input("Enter key (32 chars for AES): ", cle_str, MAX_MSG, NULL);
                     if (strlen(cle_str) != AES_KEY_SIZE) {
                         set_color(RED);
@@ -389,10 +419,30 @@ int main(int argc, char *argv[]) {
                         set_color(WHITE);
                         break;
                     }
-                    aes_decrypt(message, cle_str, output);
-                    printf("Decrypted: %s\n", output);
-                    add_to_history("AES decrypt", output);
+                    unsigned char iv[AES_IV_SIZE];
+                    get_valid_string_input("Enter IV (32 hex chars): ", output, 33, NULL);
+                    if (strlen(output) != 32) {
+                        set_color(RED);
+                        printf("Error: IV must be 32 hex characters.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    hex_to_bytes(output, iv, AES_IV_SIZE);
+                    unsigned char *ciphertext = malloc(strlen(message) / 2);
+                    int cipher_len = hex_to_bytes(message, ciphertext, strlen(message) / 2);
+                    AES_Result *result = aes_decrypt_gcm(ciphertext, cipher_len - 16, (unsigned char *)cle_str, iv, NULL, 0, ciphertext + cipher_len - 16);
+                    free(ciphertext);
+                    if (!result) {
+                        set_color(RED);
+                        printf("Decryption or authentication failed.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    printf("Decrypted: %s\n", result->data);
+                    aes_free_result(result);
+                    add_to_history("AES-GCM decrypt", "Decrypted data");
                     break;
+                }
                 case 18:
                     get_valid_string_input("Enter encrypted text: ", message, MAX_MSG, NULL);
                     frequency_analysis(message);
@@ -471,6 +521,91 @@ int main(int argc, char *argv[]) {
                 case 29:
                     run_tests();
                     break;
+                case 30:
+                    get_valid_string_input("Enter alphabet (26 unique letters): ", cle_str, MAX_MSG, is_valid_substitution_key);
+                    chiffrement_monoalphabetique(message, cle_str);
+                    printf("Encrypted: %s\n", message);
+                    add_to_history("Monoalphabetique encrypt", message);
+                    break;
+                case 31:
+                    get_valid_string_input("Enter alphabet (26 unique letters): ", cle_str, MAX_MSG, is_valid_substitution_key);
+                    dechiffrement_monoalphabetique(message, output, cle_str);
+                    printf("Decrypted: %s\n", output);
+                    add_to_history("Monoalphabetique decrypt", output);
+                    break;
+                case 32: {
+                    get_valid_string_input("Enter key (32 chars for ChaCha20): ", cle_str, MAX_MSG, NULL);
+                    if (strlen(cle_str) != CHACHA20_KEY_SIZE) {
+                        set_color(RED);
+                        printf("Error: Key must be 32 characters.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    ChaCha20_Result *result = chacha20_encrypt((unsigned char *)message, strlen(message), (unsigned char *)cle_str);
+                    if (!result) {
+                        set_color(RED);
+                        printf("Encryption failed.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    printf("Encrypted (hex): ");
+                    for (int i = 0; i < result->data_len; i++) printf("%02x", result->data[i]);
+                    printf("\nNonce (hex): ");
+                    for (int i = 0; i < CHACHA20_NONCE_SIZE; i++) printf("%02x", result->nonce[i]);
+                    printf("\n");
+                    chacha20_free_result(result);
+                    add_to_history("ChaCha20 encrypt", "Encrypted data");
+                    break;
+                }
+                case 33: {
+                    get_valid_string_input("Enter key (32 chars for ChaCha20): ", cle_str, MAX_MSG, NULL);
+                    if (strlen(cle_str) != CHACHA20_KEY_SIZE) {
+                        set_color(RED);
+                        printf("Error: Key must be 32 characters.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    unsigned char nonce[CHACHA20_NONCE_SIZE];
+                    get_valid_string_input("Enter nonce (24 hex chars): ", output, 25, NULL);
+                    if (strlen(output) != 24) {
+                        set_color(RED);
+                        printf("Error: Nonce must be 24 hex characters.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    hex_to_bytes(output, nonce, CHACHA20_NONCE_SIZE);
+                    unsigned char *ciphertext = malloc(strlen(message) / 2);
+                    int cipher_len = hex_to_bytes(message, ciphertext, strlen(message) / 2);
+                    ChaCha20_Result *result = chacha20_decrypt(ciphertext, cipher_len, (unsigned char *)cle_str, nonce);
+                    free(ciphertext);
+                    if (!result) {
+                        set_color(RED);
+                        printf("Decryption failed.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    printf("Decrypted: %s\n", result->data);
+                    chacha20_free_result(result);
+                    add_to_history("ChaCha20 decrypt", "Decrypted data");
+                    break;
+                }
+                case 34: {
+                    get_valid_string_input("Enter key (any length for RC4): ", cle_str, MAX_MSG, NULL);
+                    int out_len;
+                    unsigned char *result = rc4_encrypt_decrypt((unsigned char *)message, strlen(message), (unsigned char *)cle_str, strlen(cle_str), &out_len);
+                    if (!result) {
+                        set_color(RED);
+                        printf("Encryption/Decryption failed.\n");
+                        set_color(WHITE);
+                        break;
+                    }
+                    printf("Result (hex): ");
+                    for (int i = 0; i < out_len; i++) printf("%02x", result[i]);
+                    printf("\n");
+                    rc4_free_result(result);
+                    add_to_history("RC4 encrypt/decrypt", "Processed data");
+                    break;
+                }
                 default:
                     set_color(RED);
                     printf("Invalid choice.\n");
@@ -478,20 +613,20 @@ int main(int argc, char *argv[]) {
                     continue;
             }
 
-            if ((choix >= 1 && choix <= 12) || choix == 16 || choix == 17 || choix == 19 || choix == 20) {
+            if ((choix >= 1 && choix <= 12) || (choix >= 16 && choix <= 20) || (choix >= 30 && choix <= 34)) {
                 again = get_valid_char_input("Apply another algo? (y/n): ");
                 if (again == 'y' || again == 'Y') {
-                    choix = get_valid_int_input("New algo (1-20): ");
+                    choix = get_valid_int_input("New algo (1-34): ");
                 }
             } else {
                 again = 'n';
             }
         } while (again == 'y' || again == 'Y');
 
-        if ((choix >= 1 && choix <= 12) || choix == 16 || choix == 17 || choix == 19 || choix == 20) {
+        if ((choix >= 1 && choix <= 12) || (choix >= 16 && choix <= 20) || (choix >= 30 && choix <= 34)) {
             char save = get_valid_char_input("Save? (y/n): ");
             if (save == 'y' || save == 'Y') {
-                save_encrypted_message(choix <= 10 ? output : message, choix);
+                save_encrypted_message(choix <= 10 || choix == 31 ? output : message, choix);
             }
         }
         if (choix == 13 || choix == 14) {
