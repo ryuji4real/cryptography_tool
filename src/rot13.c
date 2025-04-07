@@ -11,5 +11,5 @@ void chiffrement_rot13(char *texte) {
 }
 
 void dechiffrement_rot13(char *texte) {
-    chiffrement_rot13(texte); // ROT13 est symétrique
+    chiffrement_rot13(texte);
 }
